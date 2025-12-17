@@ -10,6 +10,7 @@ android {
         //設定
         buildConfigField "String", "DEVICE_API_BASE_URL", "\"http://10.200.2.29:5000\""
         buildConfigField "String", "DEVICE_API_AUTHMODE_PATH", "\"/api/device/getAuthMode\""
+        buildConfigField "String", "DEVICE_API_AUTHLOG_PATH", "\"/api/auth/logs\""
 
         applicationId "com.bodycamera.tests"
         minSdk rootProject.ext.minSdk

@@ -1,4 +1,4 @@
-﻿package com.bodycamera.ba.activity
+package com.bodycamera.ba.activity
 
 import android.app.Activity
 import android.content.Intent
@@ -115,6 +115,9 @@ class VeinResultActivity : AppCompatActivity() {
                 tvIdLine.visibility = View.GONE
             }
 
+            // ログ送信 (Face Only)
+            uploadAuthLog(isSuccess = true, veinId = null, veinResultStr = null)
+
             showButtons(isSuccess = true)     // Flow1 luôn nút 終了
             return
         }
@@ -129,6 +132,9 @@ class VeinResultActivity : AppCompatActivity() {
 
         tvNameLabel.visibility = View.GONE
         tvName.visibility = View.GONE
+
+        // ログ送信 (Vein / FaceAndVein)
+        uploadAuthLog(isSuccess, veinId, veinResult)
 
         showButtons(isSuccess)
     }
@@ -231,5 +237,82 @@ class VeinResultActivity : AppCompatActivity() {
         tvName.visibility = View.GONE
 
         showButtons(isSuccess)
+
+        // ============================================
+        // ログ送信機能の呼び出し
+        // 新機能: 認証結果をサーバーへ送信する
+        // ============================================
+        uploadAuthLog(isSuccess, veinId, veinResult)
+    }
+
+    /**
+     * 認証結果ログをアップロードする
+     * フローに応じてユーザーIDや認証モードを判定して送信
+     */
+    private fun uploadAuthLog(isSuccess: Boolean, veinId: String?, veinResultStr: String?) {
+        try {
+            // 1. デバイスシリアル取得
+            val serialNo = DeviceSerialHelper.getDeviceSerial(applicationContext)
+
+            // 2. 認証モードを数値に変換 (API仕様に合わせる)
+            // 0:Face, 1:Vein, 2:FaceAndVein
+            // currentAuthMode は "Face", "Vein", "FaceAndVein" のいずれか
+            val modeInt = when (currentAuthMode) {
+                "Face" -> 0
+                "Vein" -> 1
+                "FaceAndVein" -> 2
+                else -> -1 // 未定義
+            }
+
+            // 3. UserId と UserName の特定
+            var userId = ""
+            var userName: String? = null
+
+            if (currentAuthMode == "Face") {
+                // 顔認証の場合: Face3Activity から渡された faceId / faceName を使用
+                userId = faceId ?: ""
+                userName = faceName
+            } else {
+                // 静脈またはハイブリッドの場合: 結果の veinId を使用
+                // ハイブリッドでも最終OKなら veinId が入る。NGなら null なので空文字
+                userId = veinId ?: ""
+                // 静脈認証だけでは名前は取れないため null (サーバー側でマスタ管理していれば不要だが、念のため)
+                userName = null
+
+                // フロー3(Face+Vein)の場合、Face段階の名前があるならそれを使うことも可能だが
+                // ここではシンプルに静脈IDを主とする
+                if (currentAuthMode == "FaceAndVein" && !faceName.isNullOrEmpty()) {
+                    userName = faceName
+                }
+            }
+
+            // 4. エラーメッセージの生成
+            // モードに応じたプレフィックス ("顔", "静脈", "顔＋静脈") を付与
+            val modePrefix = when (currentAuthMode) {
+                "Face" -> "顔"
+                "Vein" -> "静脈"
+                "FaceAndVein" -> "顔＋静脈"
+                else -> ""
+            }
+            val statusText = if (isSuccess) "認証成功" else "認証失敗"
+            val errorMessage = modePrefix + statusText
+
+            // 5. 送信実行
+            if (userId.isNotEmpty() || !isSuccess) {
+                // IDがある、または失敗時(IDなしでも記録残す)にログ送信
+                DeviceApiClient().sendAuthLog(
+                    serialNo = serialNo,
+                    userId = userId,
+                    userName = userName,
+                    authMode = modeInt,
+                    isSuccess = isSuccess,
+                    errorMessage = errorMessage
+                )
+            }
+
+        } catch (e: Exception) {
+            // ログ送信失敗してもメインフロー(UI)は止めない
+            e.printStackTrace()
+        }
     }
 }
