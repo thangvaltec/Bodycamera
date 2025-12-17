@@ -38,7 +38,7 @@ class DeviceApiClient {
                 callback(null)
             }
 
-            override fun onResponse(call: Call, response: Response) {
+            /*override fun onResponse(call: Call, response: Response) {
                 val result = response.body?.string()
                 Log.d("API", "Response: $result")
 
@@ -50,7 +50,36 @@ class DeviceApiClient {
                     Log.e("API", "Parse error: $e")
                     callback(null)
                 }
+            }*/
+            override fun onResponse(call: Call, response: Response) {
+
+                //  check HTTP status
+                if (!response.isSuccessful) {
+                    Log.e("API", "HTTP error: ${response.code}")
+                    callback(null)
+                    return
+                }
+
+                val result = response.body?.string()
+                Log.d("API", "Response body = $result")
+
+                if (result.isNullOrBlank()) {
+                    Log.e("API", "Empty response body")
+                    callback(null)
+                    return
+                }
+
+                try {
+                    val jsonObj = JSONObject(result)
+                    val authMode = jsonObj.getInt("authMode")
+                    callback(authMode)
+                } catch (e: Exception) {
+                    Log.e("API", "JSON parse error", e)
+                    callback(null)
+                }
             }
+
+
         })
     }
 }
